@@ -176,11 +176,14 @@ public class CipherForge {
         SecretKey key = null;
         try {
             // Derive key from password
+            System.out.print("Deriving encryption key (this may take a moment)... ");
             key = deriveKey(userPassword, salt);
+            System.out.println("done.");
 
             // Initialize cipher
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             
+            System.out.print("Encrypting file: " + inputFile + " -> " + outputFile + "... ");
             try (FileInputStream fis = new FileInputStream(inputFile);
                  FileOutputStream fos = new FileOutputStream(outputFile);
                  DataOutputStream dos = new DataOutputStream(fos)) {
@@ -205,7 +208,7 @@ public class CipherForge {
                 }
             }
             
-            System.out.println("File encrypted successfully: " + outputFile);
+            System.out.println("done.");
             
         } finally {
             // Clear sensitive data
@@ -271,6 +274,7 @@ public class CipherForge {
         byte[] nonce = null;
         SecretKey key = null;
         
+        System.out.print("Decrypting file: " + inputFile + " -> " + outputFile + "... ");
         try (FileInputStream fis = new FileInputStream(inputFile);
              DataInputStream dis = new DataInputStream(fis)) {
 
@@ -291,7 +295,7 @@ public class CipherForge {
             // Decrypt to temp file
             decryptToTempFile(fis, cipher, outputFile);
             
-            System.out.println("File decrypted successfully: " + outputFile);
+            System.out.println("done.");
             
         } catch (IOException e) {
             throw new IOException("Decryption failed: " + e.getMessage(), e);
@@ -430,11 +434,11 @@ public class CipherForge {
             }
             
             // Now check for minimum arguments for other commands
-            if (args.length < 2) {
+            if (args.length != 2) {
                 printUsage();
                 return;
             }
-            
+
             if ("-e".equals(command)) {
                 handleEncrypt(args);
             } else if ("-d".equals(command)) {
