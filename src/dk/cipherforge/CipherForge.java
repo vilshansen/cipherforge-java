@@ -32,7 +32,7 @@ import java.nio.file.StandardCopyOption;
 public class CipherForge {
     // Cryptographic constants
     private static final int KEY_SIZE = 256;
-    private static final int SALT_SIZE = 16;
+    private static final int SALT_SIZE = 32;
     private static final int NONCE_SIZE = 12;
     private static final int TAG_SIZE = 128; // 128-bit authentication tag
     private static final int PBKDF2_ITERATIONS = 1_000_000;
@@ -124,7 +124,9 @@ public class CipherForge {
     // ======================== Cryptographic Core ========================
 
     /**
-     * Derive an AES key from a password using PBKDF2
+     * Derive an AES key from a password using PBKDF2.
+     * Uses SHA-512 because it is significantly harder for many current GPUs
+     * to parallelize efficiently than SHA-256.
      */
     public static SecretKey deriveKey(char[] password, byte[] salt) 
             throws NoSuchAlgorithmException, InvalidKeySpecException {
@@ -134,7 +136,7 @@ public class CipherForge {
         
         PBEKeySpec spec = new PBEKeySpec(password, salt, PBKDF2_ITERATIONS, KEY_SIZE);
         try {
-            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
             byte[] keyBytes = factory.generateSecret(spec).getEncoded();
             return new SecretKeySpec(keyBytes, "AES");
         } finally {
@@ -468,7 +470,7 @@ public class CipherForge {
         System.err.println("ALGORITHMS:");
         System.err.println("  ┌─────────────────────────────────────────────────────────┐");
         System.err.println("  │ Encryption  : AES-256-GCM (Galois/Counter Mode)         │");
-        System.err.println("  │ Key Derivation: PBKDF2-HMAC-SHA256 with 1,000,000 iters │");
+        System.err.println("  │ Key Derivation: PBKDF2-HMAC-SHA512 with 1,000,000 iters │");
         System.err.println("  │ Randomness  : Java SecureRandom (cryptographically      │");
         System.err.println("  │              secure pseudo-random number generator)     │");
         System.err.println("  │ Authentication: 128-bit GCM authentication tag          │");
@@ -482,8 +484,8 @@ public class CipherForge {
         System.err.println("  ├─────────┼────────────────┼─────────┼────────────────────┤");
         System.err.println("  │ 0x00    │ Magic Marker   │ 16 bytes│ CIPHERFORGE-V00001 │");
         System.err.println("  │ 0x10    │ PBKDF2 Iters   │ 4 bytes │ 1,000,000          │");
-        System.err.println("  │ 0x14    │ Salt Length    │ 4 bytes │ Always 16          │");
-        System.err.println("  │ 0x18    │ Salt           │ 16 bytes│ Random salt value  │");
+        System.err.println("  │ 0x14    │ Salt Length    │ 4 bytes │ Always 32          │");
+        System.err.println("  │ 0x18    │ Salt           │ 32 bytes│ Random salt value  │");
         System.err.println("  │ 0x28    │ Nonce Length   │ 4 bytes │ Always 12          │");
         System.err.println("  │ 0x2C    │ Nonce          │ 12 bytes│ Random nonce       │");
         System.err.println("  │ 0x38    │ Filename Length│ 2 bytes │ Length of original │");
