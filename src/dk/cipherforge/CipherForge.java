@@ -235,7 +235,6 @@ public class CipherForge {
             headerDos.write(salt);
             headerDos.writeInt(nonce.length);
             headerDos.write(nonce);
-            headerDos.writeUTF(new File(inputFile).getName());
             headerDos.flush();
         }
         return headerStream.toByteArray();
@@ -275,11 +274,9 @@ public class CipherForge {
         SecretKey key = null;
         
         System.out.print("Decrypting file: " + inputFile + " -> " + outputFile + "... ");
-        try (FileInputStream fis = new FileInputStream(inputFile);
-             DataInputStream dis = new DataInputStream(fis)) {
-
+        try (FileInputStream fis = new FileInputStream(inputFile)) {
             // Read and validate header
-            HeaderData header = readAndValidateHeader(dis);
+            HeaderData header = readAndValidateHeader(fis);
             salt = header.salt;
             nonce = header.nonce;
 
@@ -314,7 +311,9 @@ public class CipherForge {
     /**
      * Read and validate file header
      */
-    private static HeaderData readAndValidateHeader(DataInputStream dis) throws IOException {
+    private static HeaderData readAndValidateHeader(FileInputStream fis) throws IOException {
+        DataInputStream dis = new DataInputStream(fis);
+
         // Read and verify magic marker
         byte[] magic = new byte[FILE_MAGIC_MARKER.length];
         dis.readFully(magic);
@@ -344,16 +343,18 @@ public class CipherForge {
         byte[] nonce = new byte[nonceLen];
         dis.readFully(nonce);
 
-        // Read original filename
-        String originalName = dis.readUTF();
-
-        return new HeaderData(magic, iterations, salt, nonce, originalName);
+        return new HeaderData(magic, iterations, salt, nonce);
     }
 
     /**
      * Rebuild AAD from header data
      */
     private static byte[] rebuildAAD(HeaderData header) throws IOException {
+        // Wrap the ByteArrayOutputStream in a DataOutputStream to handle
+        // Java primitives instead of manually converting to bytes.
+        // Also, DataOutputStream follows the network byte order (Big-Endian)
+        // standard, so data encoded on a Mac will be read correctly on a 
+        // Windows or Linux machine.
         ByteArrayOutputStream headerStream = new ByteArrayOutputStream();
         try (DataOutputStream hdos = new DataOutputStream(headerStream)) {
             hdos.write(header.magic);
@@ -362,7 +363,6 @@ public class CipherForge {
             hdos.write(header.salt);
             hdos.writeInt(header.nonce.length);
             hdos.write(header.nonce);
-            hdos.writeUTF(header.originalName);
             hdos.flush();
         }
         return headerStream.toByteArray();
@@ -405,14 +405,12 @@ public class CipherForge {
         final int iterations;
         final byte[] salt;
         final byte[] nonce;
-        final String originalName;
 
-        HeaderData(byte[] magic, int iterations, byte[] salt, byte[] nonce, String originalName) {
+        HeaderData(byte[] magic, int iterations, byte[] salt, byte[] nonce) {
             this.magic = magic;
             this.iterations = iterations;
             this.salt = salt;
             this.nonce = nonce;
-            this.originalName = originalName;
         }
     }
 
