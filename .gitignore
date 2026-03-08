@@ -10,5 +10,6 @@
 /enc.txt
 /.vs
 /windows/AES_GCM_Encryption/bin/Release/net8.0-windows
-lorem-ipsum-dec.txt
-lorem-ipsum-enc.txt
+lorem-ipsum-*.txt
+test.bin.*
+jar/CipherForge.jar
