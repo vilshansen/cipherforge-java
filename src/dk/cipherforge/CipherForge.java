@@ -272,7 +272,6 @@ public class CipherForge {
         byte[] nonce = null;
         SecretKey key = null;
         
-        System.out.print("Decrypting file: " + inputFile + " -> " + outputFile + "... ");
         try (FileInputStream fis = new FileInputStream(inputFile)) {
             // Read and validate header
             HeaderData header = readAndValidateHeader(fis);
@@ -283,7 +282,10 @@ public class CipherForge {
             byte[] aad = rebuildAAD(header);
 
             // Derive key and initialize cipher
+            System.out.println("Deriving decryption key (this may take a moment)... ");
             key = deriveKey(passwordChars, salt);
+
+            System.out.print("Decrypting file: " + inputFile + " -> " + outputFile + "... ");
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_SIZE, nonce));
             cipher.updateAAD(aad);
