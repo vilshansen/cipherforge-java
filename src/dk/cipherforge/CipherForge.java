@@ -185,31 +185,30 @@ public class CipherForge {
             
             System.out.print("Encrypting file: " + inputFile + " -> " + outputFile + "... ");
             try (FileInputStream fis = new FileInputStream(inputFile);
-                 FileOutputStream fos = new FileOutputStream(outputFile);
-                 DataOutputStream dos = new DataOutputStream(fos)) {
+                 FileOutputStream fos = new FileOutputStream(outputFile)) {
 
-                // Build and write header (also used as AAD)
+                // Build and write header
                 byte[] aad = buildHeader(inputFile, salt, nonce);
-                dos.write(aad);
-                dos.flush();
+                fos.write(aad);
 
-                // Initialize cipher with AAD
+                // Initialize cipher
                 cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(TAG_SIZE, nonce));
                 cipher.updateAAD(aad);
 
-                // Encrypt file content
-                try (CipherOutputStream cos = new CipherOutputStream(fos, cipher)) {
-                    byte[] buffer = new byte[CHUNK_SIZE];
-                    int bytesRead;
-                    
-                    while ((bytesRead = fis.read(buffer)) != -1) {
-                        cos.write(buffer, 0, bytesRead);
-                    }
+                byte[] buffer = new byte[CHUNK_SIZE];
+                int bytesRead;
+                while ((bytesRead = fis.read(buffer)) != -1) {
+                    byte[] output = cipher.update(buffer, 0, bytesRead);
+                    if (output != null) fos.write(output);
                 }
+
+                // Finalize encryption and write the GCM Tag
+                byte[] finalOutput = cipher.doFinal();
+                if (finalOutput != null) fos.write(finalOutput);
+                
+                fos.flush();
             }
-            
             System.out.println("done.");
-            
         } finally {
             // Clear sensitive data
             if (key != null) {
@@ -375,27 +374,31 @@ public class CipherForge {
         Path outputPath = Paths.get(outputFile).toAbsolutePath();
         Path tempFile = Files.createTempFile(outputPath.getParent(), "cipherforge_decrypt_", ".tmp");
         
-        try {
-            try (CipherInputStream cis = new CipherInputStream(fis, cipher);
-                 FileOutputStream fos = new FileOutputStream(tempFile.toFile())) {
-
-                byte[] buffer = new byte[CHUNK_SIZE];
-                int bytesRead;
-                
-                while ((bytesRead = cis.read(buffer)) != -1) {
-                    fos.write(buffer, 0, bytesRead);
-                }
-                fos.flush();
+        try (FileOutputStream fos = new FileOutputStream(tempFile.toFile())) {
+            byte[] buffer = new byte[CHUNK_SIZE];
+            int bytesRead;
+            
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                byte[] output = cipher.update(buffer, 0, bytesRead);
+                if (output != null) fos.write(output);
             }
 
-            // If we get here, authentication succeeded
-            Files.move(tempFile, outputPath, StandardCopyOption.REPLACE_EXISTING);
+            // This line verifies the 128-bit GCM Tag. 
+            // Throws AEADBadTagException if the file was tampered with.
+            byte[] finalOutput = cipher.doFinal();
+            if (finalOutput != null) fos.write(finalOutput);
             
+            fos.flush();
+            fos.getFD().sync(); // Ensure data is physically on disk
         } catch (Exception e) {
             Files.deleteIfExists(tempFile);
             throw new IOException("Decryption failed: " + e.getMessage(), e);
         }
+
+        // Move only if authentication succeeded
+        Files.move(tempFile, outputPath, StandardCopyOption.REPLACE_EXISTING);
     }
+    
 
     /**
      * Simple data class for header components
